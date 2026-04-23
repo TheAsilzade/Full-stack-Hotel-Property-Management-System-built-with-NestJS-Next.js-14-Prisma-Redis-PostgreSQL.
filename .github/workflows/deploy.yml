@@ -1,0 +1,275 @@
+name: CI / CD — Noblesse PMS
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_PREFIX: ${{ github.repository_owner }}/Noblesse
+
+jobs:
+  # ─── Lint & Type-check ──────────────────────────────────────────────────────
+  lint:
+    name: Lint & Type-check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build shared package
+        run: npm run build --workspace=packages/shared
+
+      - name: Type-check API
+        run: cd apps/api && npx tsc --noEmit
+
+      - name: Type-check Web
+        run: cd apps/web && npx tsc --noEmit
+
+  # ─── Test ───────────────────────────────────────────────────────────────────
+  test:
+    name: Test Suite
+    runs-on: ubuntu-latest
+    needs: lint
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: Noblesse
+          POSTGRES_PASSWORD: test_password
+          POSTGRES_DB: Noblesse_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build shared package
+        run: npm run build --workspace=packages/shared
+
+      - name: Generate Prisma client
+        run: cd apps/api && npx prisma generate
+
+      - name: Run database migrations
+        run: cd apps/api && npx prisma migrate deploy
+        env:
+          DATABASE_URL: postgresql://Noblesse:test_password@localhost:5432/Noblesse_test
+
+      - name: Run tests
+        run: cd apps/api && npx jest --no-coverage --forceExit
+        env:
+          DATABASE_URL: postgresql://Noblesse:test_password@localhost:5432/Noblesse_test
+          REDIS_URL: redis://localhost:6379
+          JWT_SECRET: test_jwt_secret_for_ci
+          JWT_REFRESH_SECRET: test_jwt_refresh_secret_for_ci
+          NODE_ENV: test
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: apps/api/coverage/
+          retention-days: 7
+
+  # ─── Build Docker images ────────────────────────────────────────────────────
+  build:
+    name: Build & Push Images
+    runs-on: ubuntu-latest
+    needs: test
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+
+    permissions:
+      contents: read
+      packages: write
+
+    outputs:
+      api_image: ${{ steps.meta_api.outputs.tags }}
+      web_image: ${{ steps.meta_web.outputs.tags }}
+      version: ${{ steps.meta_api.outputs.version }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # ── API image ────────────────────────────────────────────────────────────
+      - name: Extract metadata for API image
+        id: meta_api
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-api
+          tags: |
+            type=sha,prefix=sha-
+            type=raw,value=latest,enable={{is_default_branch}}
+            type=semver,pattern={{version}}
+
+      - name: Build and push API image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: apps/api/Dockerfile.prod
+          push: true
+          tags: ${{ steps.meta_api.outputs.tags }}
+          labels: ${{ steps.meta_api.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      # ── Web image ────────────────────────────────────────────────────────────
+      - name: Extract metadata for Web image
+        id: meta_web
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-web
+          tags: |
+            type=sha,prefix=sha-
+            type=raw,value=latest,enable={{is_default_branch}}
+            type=semver,pattern={{version}}
+
+      - name: Build and push Web image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: apps/web/Dockerfile.prod
+          push: true
+          tags: ${{ steps.meta_web.outputs.tags }}
+          labels: ${{ steps.meta_web.outputs.labels }}
+          build-args: |
+            NEXT_PUBLIC_API_URL=${{ vars.NEXT_PUBLIC_API_URL }}
+            NEXT_PUBLIC_WS_URL=${{ vars.NEXT_PUBLIC_WS_URL }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  # ─── Deploy to production ───────────────────────────────────────────────────
+  deploy:
+    name: Deploy to Production
+    runs-on: ubuntu-latest
+    needs: build
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    environment:
+      name: production
+      url: https://app.Noblessepms.com
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          port: ${{ secrets.DEPLOY_PORT || 22 }}
+          script: |
+            set -e
+
+            # Navigate to deployment directory
+            cd /opt/Noblesse
+
+            # Pull latest compose file
+            git pull origin main
+
+            # Log in to GHCR
+            echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+
+            # Pull new images
+            docker compose -f docker-compose.prod.yml pull api web
+
+            # Run database migrations (one-shot container)
+            docker compose -f docker-compose.prod.yml run --rm migrate
+
+            # Rolling restart: API first, then web
+            docker compose -f docker-compose.prod.yml up -d --no-deps --force-recreate api
+            sleep 15
+
+            # Health check API
+            for i in $(seq 1 10); do
+              if curl -sf http://localhost:3001/health; then
+                echo "API healthy"
+                break
+              fi
+              echo "Waiting for API... ($i/10)"
+              sleep 5
+            done
+
+            docker compose -f docker-compose.prod.yml up -d --no-deps --force-recreate web
+            sleep 10
+
+            # Reload nginx
+            docker compose -f docker-compose.prod.yml exec nginx nginx -s reload
+
+            # Clean up old images
+            docker image prune -f
+
+            echo "Deployment complete — version ${{ needs.build.outputs.version }}"
+
+      - name: Notify deployment success
+        if: success()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            github.rest.repos.createCommitStatus({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              sha: context.sha,
+              state: 'success',
+              description: 'Deployed to production',
+              context: 'deployment/production'
+            })
+
+      - name: Notify deployment failure
+        if: failure()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            github.rest.repos.createCommitStatus({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              sha: context.sha,
+              state: 'failure',
+              description: 'Production deployment failed',
+              context: 'deployment/production'
+            })

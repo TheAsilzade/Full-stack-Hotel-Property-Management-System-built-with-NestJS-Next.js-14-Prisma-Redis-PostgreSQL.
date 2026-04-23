@@ -1,0 +1,180 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Playfair+Display:wght@400;500;600;700&display=swap');
+
+@layer base {
+  :root {
+    /* ─── Noblesse Gold & White Theme ─────────────────────── */
+    --background: 0 0% 99%;
+    --foreground: 220 13% 13%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 220 13% 13%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 220 13% 13%;
+
+    /* Gold as primary */
+    --primary: 42 55% 54%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 220 13% 96%;
+    --secondary-foreground: 220 13% 13%;
+
+    --muted: 220 13% 96%;
+    --muted-foreground: 220 9% 46%;
+
+    --accent: 42 55% 96%;
+    --accent-foreground: 42 55% 30%;
+
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 220 13% 91%;
+    --input: 220 13% 91%;
+    --ring: 42 55% 54%;
+
+    --radius: 0.5rem;
+
+    /* ─── Sidebar ─────────────────────────────────────────── */
+    --sidebar-bg: 220 13% 13%;
+    --sidebar-text: 0 0% 95%;
+    --sidebar-muted: 220 9% 60%;
+    --sidebar-border: 220 13% 20%;
+    --sidebar-active-bg: 42 55% 54%;
+    --sidebar-active-text: 0 0% 100%;
+    --sidebar-hover-bg: 220 13% 18%;
+    --sidebar-width: 260px;
+    --sidebar-collapsed-width: 64px;
+  }
+
+  .dark {
+    --background: 220 13% 9%;
+    --foreground: 0 0% 95%;
+    --card: 220 13% 12%;
+    --card-foreground: 0 0% 95%;
+    --popover: 220 13% 12%;
+    --popover-foreground: 0 0% 95%;
+    --primary: 42 55% 54%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 220 13% 18%;
+    --secondary-foreground: 0 0% 95%;
+    --muted: 220 13% 18%;
+    --muted-foreground: 220 9% 60%;
+    --accent: 42 55% 20%;
+    --accent-foreground: 42 55% 80%;
+    --destructive: 0 62% 50%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 220 13% 20%;
+    --input: 220 13% 20%;
+    --ring: 42 55% 54%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground font-sans antialiased;
+  }
+
+  h1, h2, h3 {
+    @apply font-display;
+  }
+}
+
+@layer components {
+  /* ─── Sidebar ─────────────────────────────────────────────── */
+  .sidebar {
+    background-color: hsl(var(--sidebar-bg));
+    color: hsl(var(--sidebar-text));
+    width: var(--sidebar-width);
+    transition: width 0.2s ease;
+  }
+
+  .sidebar.collapsed {
+    width: var(--sidebar-collapsed-width);
+  }
+
+  .sidebar-item {
+    @apply flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors cursor-pointer;
+    color: hsl(var(--sidebar-muted));
+  }
+
+  .sidebar-item:hover {
+    background-color: hsl(var(--sidebar-hover-bg));
+    color: hsl(var(--sidebar-text));
+  }
+
+  .sidebar-item.active {
+    background-color: hsl(var(--sidebar-active-bg));
+    color: hsl(var(--sidebar-active-text));
+  }
+
+  /* ─── Gold Gradient ───────────────────────────────────────── */
+  .gold-gradient {
+    background: linear-gradient(135deg, #C9A84C 0%, #e8c96a 50%, #C9A84C 100%);
+  }
+
+  .gold-text {
+    background: linear-gradient(135deg, #C9A84C, #e8c96a);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  /* ─── Stat Card ───────────────────────────────────────────── */
+  .stat-card {
+    @apply bg-card rounded-xl border border-border p-5 shadow-card;
+  }
+
+  /* ─── Skeleton shimmer ────────────────────────────────────── */
+  .skeleton {
+    @apply rounded-md bg-muted;
+    background: linear-gradient(90deg, hsl(var(--muted)) 25%, hsl(var(--accent)) 50%, hsl(var(--muted)) 75%);
+    background-size: 200% 100%;
+    animation: shimmer 1.5s infinite linear;
+  }
+
+  /* ─── Room Status Badges ──────────────────────────────────── */
+  .badge-available   { @apply bg-green-100 text-green-800 border-green-200; }
+  .badge-occupied    { @apply bg-blue-100 text-blue-800 border-blue-200; }
+  .badge-dirty       { @apply bg-orange-100 text-orange-800 border-orange-200; }
+  .badge-clean       { @apply bg-green-100 text-green-800 border-green-200; }
+  .badge-inspected   { @apply bg-purple-100 text-purple-800 border-purple-200; }
+  .badge-out-of-order { @apply bg-red-100 text-red-800 border-red-200; }
+  .badge-on-change   { @apply bg-yellow-100 text-yellow-800 border-yellow-200; }
+
+  /* ─── Reservation Status Badges ───────────────────────────── */
+  .badge-confirmed   { @apply bg-blue-100 text-blue-800 border-blue-200; }
+  .badge-checked-in  { @apply bg-green-100 text-green-800 border-green-200; }
+  .badge-checked-out { @apply bg-gray-100 text-gray-700 border-gray-200; }
+  .badge-cancelled   { @apply bg-red-100 text-red-800 border-red-200; }
+  .badge-no-show     { @apply bg-orange-100 text-orange-800 border-orange-200; }
+  .badge-tentative   { @apply bg-yellow-100 text-yellow-800 border-yellow-200; }
+}
+
+@layer utilities {
+  .scrollbar-thin {
+    scrollbar-width: thin;
+    scrollbar-color: hsl(var(--border)) transparent;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar-thumb {
+    background-color: hsl(var(--border));
+    border-radius: 3px;
+  }
+}

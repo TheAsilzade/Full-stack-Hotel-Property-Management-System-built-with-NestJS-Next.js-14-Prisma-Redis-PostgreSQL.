@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npx tsc *)",
+      "Bash(sed -i 's/  IsUUID,\\\\n//g; s/  IsUUID,//g' 'C:/Users/asilz/Desktop/hotel automation/apps/api/src/modules/reservations/dto/create-reservation.dto.ts')",
+      "Bash(sed -i /IsUUID,/d 'C:/Users/asilz/Desktop/hotel automation/apps/api/src/modules/reservations/dto/create-reservation.dto.ts')",
+      "Bash(sed -i 's/@IsUUID\\(\\)/@IsString\\(\\)/g' 'C:/Users/asilz/Desktop/hotel automation/apps/api/src/modules/reservations/dto/create-reservation.dto.ts')",
+      "Bash(xargs grep *)"
+    ]
+  }
+}
